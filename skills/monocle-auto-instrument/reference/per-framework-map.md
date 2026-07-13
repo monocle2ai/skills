@@ -32,9 +32,9 @@ Handler names are registered in `instrumentation/common/wrapper_method.py` `MONO
 (e.g. `langgraph_agent_handler`, `langgraph_tool_handler`, `crew_ai_agent_handler`, `crew_ai_task_handler`,
 `crew_ai_tool_handler`, `openai_handler`). The `methods.py` entry's `"span_handler"` string must match a key there.
 
-## Adding a NEW framework (large change — usually decline per Phase 5)
+## Adding a NEW framework (out of scope — STOP per Phase 0)
 
-Only if the user explicitly wants it and it's genuinely a small surface: create `metamodel/<fw>/methods.py`
-(+ processor + entities), then register in `wrapper_method.py` (import `<FW>_METHODS`, add to
-`DEFAULT_METHODS_LIST`, add handlers to `MONOCLE_SPAN_HANDLERS`). A from-scratch framework (e.g. AG2/AutoGen)
-is NOT a small gap-fill — flag it as a redesign-scale contribution and stop unless told otherwise.
+A from-scratch framework metamodel (e.g. AG2/AutoGen) is NOT a small gap-fill and is out of scope for
+this skill: stop, report the unsupported framework, and suggest opening an issue at `monocle2ai/monocle`.
+(For orientation only: a metamodel consists of `metamodel/<fw>/methods.py` + processor + entities,
+registered in `wrapper_method.py` via `DEFAULT_METHODS_LIST` and `MONOCLE_SPAN_HANDLERS`.)

@@ -35,11 +35,12 @@ Requests, aiohttp, MCP / FastMCP, A2A, Azure Functions, AWS Lambda.
 - **AG2 / AutoGen** (`ag2`, `autogen`, `pyautogen`): **no `autogen` metamodel exists.** You'll still get
   `inference.*` spans from its underlying OpenAI/Anthropic calls, but **no `agentic.turn`/`agentic.invocation`/
   tool spans**. Tell the user this is inference-only and let them decide whether to continue. (A dedicated
-  metamodel would be a Phase-5 contribution, but that's a from-scratch add, not a small gap-fill.)
+  metamodel is a from-scratch contribution to Monocle — out of scope for this skill; suggest opening an
+  issue at `monocle2ai/monocle` instead.)
 
 ## Ground truth
 
 The authoritative list is `DEFAULT_METHODS_LIST` in
 `monocle/apptrace/src/monocle_apptrace/instrumentation/common/wrapper_method.py`, and the metamodel dirs under
 `monocle/apptrace/src/monocle_apptrace/instrumentation/metamodel/`. If unsure whether something is supported,
-read those — don't guess. (See `monocle-source-locations` memory for the exact path on this machine.)
+read those — don't guess.
