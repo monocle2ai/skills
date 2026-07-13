@@ -1,0 +1,19 @@
+{
+  "name": "monocle",
+  "version": "0.1.0",
+  "description": "Coding agent skills for instrumenting, tracing and testing agents with Monocle. Instrument a Python agentic app, verify the traces against a good-trace rubric, and auto-create the instrumentation when it's missing or incomplete.",
+  "author": {
+    "name": "Monocle2AI"
+  },
+  "license": "Apache-2.0",
+  "keywords": [
+    "monocle",
+    "tracing",
+    "observability",
+    "instrumentation",
+    "telemetry",
+    "agents",
+    "agentic"
+  ],
+  "skills": ["skills/"]
+}
