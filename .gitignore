@@ -1,0 +1,9 @@
+# Monocle trace output
+.monocle/
+
+# Python
+__pycache__/
+*.pyc
+
+# macOS
+.DS_Store
