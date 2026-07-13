@@ -1,0 +1,13 @@
+{
+  "name": "monocle-skills",
+  "owner": {
+    "name": "Monocle2AI"
+  },
+  "plugins": [
+    {
+      "name": "monocle",
+      "source": "./",
+      "description": "Instrument, trace, and test agentic apps with Monocle telemetry."
+    }
+  ]
+}
