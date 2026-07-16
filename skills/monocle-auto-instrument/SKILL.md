@@ -5,12 +5,12 @@ description: >-
   default, deep posture. Beyond placing the setup call and grading traces, when a gap
   turns out to be in Monocle itself this skill fixes Monocle directly against a local,
   writable clone (cloning it from upstream on first use if absent) and proves the fix
-  with Monocle's own tests. Triggers: "instrument this with monocle", "add monocle to
-  this repo", "set up monocle telemetry", "trace this agent", "deep-instrument this",
-  "add monocle support for <framework>" (especially one Monocle does not yet patch,
-  e.g. AG2/autogen), "run the cascade across the demo corpus", or any ask to
-  structurally extend Monocle (new framework metamodel; refactor span
-  handlers/processors/entities; edit the registry).
+  with Monocle's own tests. Only frameworks Monocle already supports are in scope —
+  if the app's framework is unsupported, the skill stops and reports instead of
+  extending Monocle with a new framework metamodel. Triggers: "instrument this with
+  monocle", "add monocle to this repo", "set up monocle telemetry", "trace this
+  agent", "deep-instrument this", or any ask to fix Monocle's instrumentation of a
+  supported framework (repair span handlers/processors/entities; edit the registry).
 argument-hint: [app_folder]
 allowed-tools:
   - Read
@@ -26,10 +26,10 @@ allowed-tools:
 This is the default instrumentation skill, run in a **deep posture**: whoever runs it — a Monocle maintainer or an outside contributor — works against a **local, writable Monocle clone** and may change Monocle itself, not just the app. That posture changes three things:
 
 1. **The Monocle source is local and writable** — make real changes there, editable-install them, iterate.
-2. **Deep changes are allowed** — add new framework metamodels, refactor span handlers / output processors / entities, restructure the registry. Redesigns are on the table: where a gap genuinely needs one, you do the redesign — carefully, not reflexively.
-3. **Safety shifts from "additive-only" to "test-suite-proven."** Because changes are bigger, the bar is: **Monocle's own pytest suite stays green AND you add a test for every fix/new framework.** Zero regression is proven, not assumed.
+2. **Deep changes are allowed within supported frameworks** — refactor span handlers / output processors / entities, restructure the registry. Redesigns are on the table: where a gap genuinely needs one, you do the redesign — carefully, not reflexively. (Adding a brand-new framework metamodel is out of scope — see Phase 0.)
+3. **Safety shifts from "additive-only" to "test-suite-proven."** Because changes are bigger, the bar is: **Monocle's own pytest suite stays green AND you add a test for every fix.** Zero regression is proven, not assumed.
 
-You run the loop **autonomously with minimal gating**. Token posture is **liberal** — deep investigation, multiple approaches, run the full suite. Do not stop at the first PASS when the goal is a cascade; carry the fix across the whole framework.
+You run the loop **autonomously with minimal gating**. Token posture is **liberal** — deep investigation, multiple approaches, run the full suite.
 
 ## Environment (local Monocle — clone it on first use if absent)
 
@@ -58,13 +58,13 @@ Everything in between — placing the setup call, running local demos, grading, 
 
 ---
 
-## Phase 0 — Detect framework (and DON'T stop if unsupported)
+## Phase 0 — Detect framework (STOP if unsupported)
 
 1. Detect framework(s) from manifests + imports (`reference/supported-frameworks.md`).
 2. Branch on support:
    - **Supported** → Phase 1.
-   - **Partially supported** (e.g. inference-only) → note it, then in Phase 5 decide whether to deepen the metamodel to add the missing agentic spans.
-   - **Unsupported** (e.g. AG2/`autogen`) → **do NOT stop.** Go to **Phase 5-NEW** (build a new framework metamodel from scratch). This is the headline capability of deep mode.
+   - **Partially supported** (e.g. AG2/`autogen` — inference-only, no agentic spans) → tell the user exactly what will and won't be captured and let them decide whether to continue. If they continue, gaps found later are diagnosed in Phase 4/5 **within the existing metamodel only**.
+   - **Unsupported** (no Monocle metamodel and no inference coverage) → **STOP.** Report which framework was detected and that Monocle doesn't support it yet, and suggest opening an issue at `monocle2ai/monocle`. Do not instrument the app and do not scaffold a new framework metamodel.
 
 ## Phase 1 — Understand the repo & place the setup call
 
@@ -72,11 +72,11 @@ Same as base: build a mental model, insert `setup_monocle_telemetry(workflow_nam
 
 ## Phase 2 — Run the system (no gate unless side effects)
 
-Pick one question calibrated to exercise the agent loop + a tool call. Run it. Locate the trace under `.monocle/`. (Run the demo's hardest realistic question first in cascade mode — see Phase 7.)
+Pick one question calibrated to exercise the agent loop + a tool call. Run it. Locate the trace under `.monocle/`.
 
 ## Phase 3 — Grade against the recipe
 
-Run the bundled grader first — `python scripts/grade_trace.py .monocle/*.json` — for the span tree, per-trace verdict, and cross-trace session-anchoring check (structural FAILs vs `? review` flags). Then apply `reference/good-trace-recipe.md`: `workflow → agentic.turn → agentic.invocation(1..N) → {inference.framework→inference.modelapi, agentic.tool.invocation}`, token `metadata` on inference spans, populated entity names (agent + tool `entity.1.name`, model `entity.2.name`), a single `scope.agentic.session` anchoring the run (multiple traces from one trigger must share it). PASS → record and (in cascade mode) move to the next demo. FAIL → Phase 4.
+Run the bundled grader first — `python scripts/grade_trace.py .monocle/*.json` — for the span tree, per-trace verdict, and cross-trace session-anchoring check (structural FAILs vs `? review` flags). Then apply `reference/good-trace-recipe.md`: `workflow → agentic.turn → agentic.invocation(1..N) → {inference.framework→inference.modelapi, agentic.tool.invocation}`, token `metadata` on inference spans, populated entity names (agent + tool `entity.1.name`, model `entity.2.name`), a single `scope.agentic.session` anchoring the run (multiple traces from one trigger must share it). PASS → record and report. FAIL → Phase 4.
 
 **Explicit input/output check — do this on EVERY grade.** For every `inference`, `agentic.tool.invocation`, AND `agentic.invocation` span, confirm it carries BOTH a non-empty `data.input` and a non-empty `data.output`. Enumerate any span missing either side — don't wave it through (missing I/O is the single most common real gap). Each miss goes to Phase 4 for the decision below.
 
@@ -97,42 +97,10 @@ Use `reference/diagnosis-tree.md`. **Read the repo code first** — if the devia
 3. **Editable-install → re-run the same question → re-grade (Phase 3).** Iterate fix→install→run→grade until it PASSES. Multiple loops are expected; that's fine.
 4. **Prove zero regression:** add/adjust a test under Monocle's test suite for this fix, then run `uv run pytest` (touched area first, then full). Green is the bar. If your change reds other tests, either fix correctly or revert and rethink — never weaken a test to pass.
 
-## Phase 5-NEW — Add a brand-new framework metamodel (deep mode's flagship)
-
-When the framework is unsupported (e.g. AG2/`autogen`):
-1. Identify the framework's agent/tool/LLM entry points (the classes/methods that map to `agentic.turn` / `agentic.invocation` / `agentic.tool.invocation` / `inference`).
-2. Scaffold `instrumentation/metamodel/<fw>/`: `methods.py` (wrapper method entries — package/object/method + the span type), an output processor, and `entities/` accessors. **Model it on the closest existing framework** (`per-framework-map.md`) — e.g. AG2's ConversableAgent/GroupChat resembles CrewAI/AutoGen-style turns. Copy that framework's file structure and conventions exactly; keep it minimal and **sparing with comments** (only where the *why* is non-obvious — no narration or boilerplate banners).
-3. Register it: add to `DEFAULT_METHODS_LIST` and `MONOCLE_SPAN_HANDLERS` in `wrapper_method.py`.
-4. Editable-install, run the demo, grade. Iterate until the new framework produces the full recipe tree.
-5. Add a test module for the new framework. Run the full suite. Then (if re-adding the demo) wire a demo back into the corpus.
-
 ## Phase 6 — Commit / PR (gate only on push)
 
 1. Once the demo PASSES and pytest is green, commit to a working branch on your fork (`monocle-fix/<feature>`), **DCO-signed** (`git commit -s`). Local/WIP commits need no gate.
 2. 🚦 Ask before pushing / opening the upstream PR against `monocle2ai/monocle`. Follow `reference/fix-and-pr-flow.md`: **`[claude-skill]`-prefixed title**, DCO sign-off (`git commit -s`), and the `🤖 Generated with the monocle-auto-instrument skill` footer. Batch related fixes into one coherent PR where sensible.
-
-## Phase 7 — Cascade across a framework (the corpus driver)
-
-This is how you run the whole tool, framework by framework:
-1. Pick a framework. Order its demos **hardest-first** (richest span shape / most agents / parallelism).
-2. Run the hardest demo through Phases 1–6. Land the Monocle fix on a branch.
-3. With that branch still installed, **re-run every remaining demo in the same framework** and grade. They should now PASS on the same fix (the cascade). Any that don't = a new sub-gap → loop back to Phase 4 for that demo.
-4. When the whole framework is green, move to the next framework. Keep each framework's fixes on a focused branch.
-
-Recommended framework order: **validate on LangGraph (a clean demo) → new SDKs hardest-first (OpenAI Agents SDK, MS Agent Framework, Strands) where real gaps live → cascade CrewAI + LlamaIndex → AG2 from scratch (Phase 5-NEW).**
-
-## Per-framework base branch + session + PR policy (the cascade contract)
-
-This is how a real cascade run is operated. **One terminal/session per framework — never share a session across frameworks.**
-
-1. **Base branch per framework.** Each framework is tested on a designated **base branch** of the local Monocle clone — usually an *existing contributor branch* we are simultaneously **reviewing** (e.g. a streaming-support branch). Check it out FIRST and use it for **every demo of that framework**. Make all fixes on top of it; do not branch per demo. Some frameworks take a **union** of two branches (merge both, then test on the merge).
-2. **Reviewing while testing.** Treat the base branch as code under review: the cascade both *verifies it works on complex apps* and *extends it* where coverage is missing. Your commits land on (or on top of) that branch.
-3. **Fresh session per run.** Every demo run uses a **new `scope.agentic.session`** — never reuse a session id across runs or frameworks. (One framework = one terminal; each demo run inside it = its own session.)
-4. **Complexity bar.** Only grade against **complex, multi-agent** demos (3+ agents / parallelism / handoffs / tools) — not 1–2-agent toys. The whole point is proving coverage on realistic systems.
-5. **Exercise the branch's feature.** If the base branch adds **streaming** support, run the demos in streaming mode so the streaming instrumentation is actually exercised and graded.
-6. **One PR per framework.** When a framework's demos all PASS and pytest is green, open **exactly one PR** for that framework's gaps (based on / targeting its base branch). End-of-framework report: "Tested `<framework>` on N complex multi-agent demos (list), coverage confirmed, PR #__."
-
-Remotes: add your fork (and any co-reviewer's fork whose branch you're testing on) as named remotes once, so you can check out and build on their base branch. You're given (or you choose) the exact base branch per framework at the start of a cascade run.
 
 ---
 
@@ -143,7 +111,7 @@ Remotes: add your fork (and any co-reviewer's fork whose branch you're testing o
 - Never weaken or delete a Monocle test to make a change pass. Never paper over an app bug by distorting instrumentation.
 - Touch the user's app minimally (setup call + marker only); all real work goes into Monocle.
 - **Secret hygiene:** never print, log, or commit API keys/tokens. Exporter/provider keys (e.g. `OKAHU_API_KEY`) go in the environment or `~/.monocle/.env`, never in a committed file or an echoed shell command.
-- Report honestly per demo: show the actual span tree, name what you changed in Monocle, and show the pytest result. In cascade mode, keep a running table of demo → PASS/FAIL → fix applied.
+- Report honestly: show the actual span tree, name what you changed in Monocle, and show the pytest result.
 
 ## Red Flags — STOP
 
@@ -156,7 +124,7 @@ If you catch yourself about to do any of these, stop and re-read the rule it bre
 - Pushing a branch or opening the upstream PR without hitting the 🚦 gate.
 - Running a demo with external side effects (email, paid/prod API) without hitting the 🚦 gate.
 - Echoing, logging, or committing an API key/token.
-- Stopping at the first PASS in cascade mode instead of carrying the fix across the whole framework.
+- Scaffolding a new framework metamodel for an unsupported framework instead of stopping (Phase 0).
 
 ## Rationalizations — and the reality
 
@@ -168,4 +136,4 @@ If you catch yourself about to do any of these, stop and re-read the rule it bre
 | "A one-line tweak in the app is easier than fixing Monocle." | App changes beyond the setup call + marker hide the real gap and don't fix Monocle for the next app. All real work goes into Monocle. |
 | "I'm mid-flow, pushing now saves a round-trip." | Push and upstream PR are the one hard gate. Local commits are free; crossing to the remote is not. Ask first. |
 | "It's just a local demo, the side effect is harmless." | Side effects (email, paid/prod calls) are gated regardless of how local it feels. Confirm before the first run. |
-| "This demo passed, the framework is done." | One PASS is one demo. Cascade mode is done when *every* demo in the framework is green on the same fix. |
+| "The framework isn't supported, but I can see how to add it." | Out of scope — stop per Phase 0 and suggest an upstream issue. A new metamodel is a Monocle contribution, not an instrumentation run. |
