@@ -1,6 +1,6 @@
 ---
 name: monocle-test-gen
-description: "Generate a pytest test file that uses the Monocle Test Tools fluent API (`monocle_trace_asserter`) to drive an agent under instrumentation and assert against the emitted traces. USE FOR: any request phrased as 'write/create/generate a Monocle test', 'add a fluent test for <agent>', 'test that <agent> calls <tool> with <input>', 'validate that <agent> produces <output>', or any description that names (a) an agent or workflow to run, (b) an input, and (c) something to validate about the resulting traces (tools called, agents invoked, output content, token/duration limits, evaluation results). DO NOT USE FOR: declarative `@monocle_testcase`-style parameterized tests (those are a separate pattern — use only when the user explicitly asks for declarative/parameterized tests), or for writing instrumentation/exporter code under `apptrace/`."
+description: "Generate a pytest test file that uses the Monocle Test Tools fluent API (`monocle_trace_asserter`) to drive an agent under instrumentation and assert against the emitted traces. USE FOR: any request phrased as 'write/create/generate a Monocle test', 'add a fluent test for <agent>', 'test that <agent> calls <tool> with <input>', 'validate that <agent> produces <output>', or any description that names (a) an agent or workflow to run, (b) an input, and (c) something to validate about the resulting traces (tools called, agents invoked, output content, token/duration limits, evaluation results), or to generate many tests at once from public datasets (HuggingFace, tau2-bench); triggers 'generate tests from a dataset', 'pull a dataset and test my agent', 'make as many tests as possible' (see Dataset mode below). DO NOT USE FOR: declarative `@monocle_testcase`-style parameterized tests (those are a separate pattern — use only when the user explicitly asks for declarative/parameterized tests), or for writing instrumentation/exporter code under `apptrace/`."
 metadata:
   author: prasad@okahu.ai
   version: "1.0.0"
@@ -208,3 +208,38 @@ async def test_parallel_flight_and_hotel(monocle_trace_asserter: TraceAssertion)
 1. Print the file path you wrote to.
 2. Show the user the suggested command to run it, e.g. `pytest test_tools/tests/integration/test_<name>_fluent.py -v`.
 3. Do NOT run the test automatically unless the user asked — most agent runs hit live LLM APIs and cost money.
+
+## Dataset mode — generate many tests from public datasets
+
+Use this when the user wants broad coverage from public datasets ("generate tests from huggingface", "make as many tests as possible", "pull a dataset and test my agent") instead of one hand-described test. It works for any monocle2ai-instrumented agent.
+
+Scripts live in `scripts/`: `dataset_adapters.py` loads datasets, `generate_dataset_tests.py` emits the test file. References: `reference/dataset-sources.md` (the catalog of datasets by domain) and `reference/dataset-adapters.md` (field mapping, the fidelity ladder, and the profile schema).
+
+The agent's environment needs `pip install datasets certifi`.
+
+### Steps
+
+1. **Profile the agent.** Read its code for the framework (which gives `agent_type`), the registered tool and agent names, and the domain. Confirm the real names against the agent's monocle traces (`.monocle/*.json` or Okahu). Write a profile JSON (schema in `reference/dataset-adapters.md`).
+
+2. **Dry-run.** Generate without running the agent, then report the counts:
+
+       python scripts/generate_dataset_tests.py profile.json --out tests/ --limit-per-source 50
+
+   Show the per-source and per-fidelity totals and the non-commercial-license note. Nothing has run.
+
+3. **Pick a live cap.** Each case is a live agent call. Regenerate with `--max-cases N` to cap, and tell the user the cost before running.
+
+4. **Run.** `pytest tests/test_monocle_dataset.py -v`. Do not run automatically.
+
+### What it maps
+
+- A dataset in the agent's domain whose intent matches one of the agent's tools → positive test (tool called, arguments checked).
+- Safety and off-domain datasets → negative tests (the agent must not act).
+- QA/math rows with a gold answer → output check.
+- Rows that need tools the agent lacks, or multi-turn traps → skipped, not flattened.
+
+A dataset's own tool name (for example tau2-bench's `book_reservation`) is mapped by meaning to the agent's tool (`book_flight`); it is never copied into the test.
+
+### Worked example (LangGraph travel agent)
+
+Profile domain `["travel"]`, with `book_flight` and `book_hotel` mapped to the agent's registered names. The dry-run pulls tau2-bench (bookings plus cancel/complaint negatives) and the universal safety and tool-calling sets, then writes `test_monocle_dataset.py` and `monocle_dataset_cases.json` next to the profile.
